@@ -5,6 +5,7 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from PIL import Image
 from keras.models import load_model
+from keras.layers import BatchNormalization
 from keras.applications.mobilenet_v2 import preprocess_input
 
 ctk.set_appearance_mode("dark")
@@ -25,6 +26,21 @@ IMG_SIZE = (224, 224)
 
 FRACTURE_CLASSES = ["Fractured", "Non-Fractured"]
 TYPE_CLASSES = ["Comminuted", "Simple"]
+
+
+class CompatBatchNormalization(BatchNormalization):
+    def __init__(self, *args, renorm=None, renorm_clipping=None, renorm_momentum=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+def load_model_with_compat(model_path):
+    return load_model(
+        model_path,
+        compile=False,
+        custom_objects={
+            "BatchNormalization": CompatBatchNormalization,
+        },
+    )
 
 
 class FractureDetectorApp(ctk.CTk):
@@ -200,7 +216,7 @@ class FractureDetectorApp(ctk.CTk):
         existing_path = next((path for path in candidate_paths if os.path.exists(path)), None)
         if existing_path is None:
             return None, None
-        return load_model(existing_path), existing_path
+        return load_model_with_compat(existing_path), existing_path
 
     def load_models(self):
         messages = []
