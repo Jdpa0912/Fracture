@@ -13,8 +13,14 @@ ctk.set_default_color_theme("blue")
 APP_TITLE = "Detector de Fracturas RX"
 WINDOW_GEOMETRY = "1180x760"
 
-MODEL_FRACTURE_PATH = "output/model.keras"
-MODEL_TYPE_PATH = "output/fracture_type.keras"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_FRACTURE_CANDIDATES = [
+    os.path.join(BASE_DIR, "output", "fracture_detector.keras"),
+    os.path.join(BASE_DIR, "output", "model.keras"),
+]
+MODEL_TYPE_CANDIDATES = [
+    os.path.join(BASE_DIR, "output", "fracture_type.keras"),
+]
 IMG_SIZE = (224, 224)
 
 FRACTURE_CLASSES = ["Fractured", "Non-Fractured"]
@@ -190,24 +196,36 @@ class FractureDetectorApp(ctk.CTk):
         )
         self.details_text.configure(state="disabled")
 
+    def _load_first_existing_model(self, candidate_paths):
+        existing_path = next((path for path in candidate_paths if os.path.exists(path)), None)
+        if existing_path is None:
+            return None, None
+        return load_model(existing_path), existing_path
+
     def load_models(self):
         messages = []
 
         try:
-            if os.path.exists(MODEL_FRACTURE_PATH):
-                self.fracture_model = load_model(MODEL_FRACTURE_PATH)
-                messages.append(f"Detector de fractura: OK\nRuta: {MODEL_FRACTURE_PATH}")
+            self.fracture_model, fracture_model_path = self._load_first_existing_model(MODEL_FRACTURE_CANDIDATES)
+            if self.fracture_model is not None:
+                messages.append(f"Detector de fractura: OK\nRuta: {fracture_model_path}")
             else:
-                messages.append(f"Detector de fractura: NO encontrado\nRuta esperada: {MODEL_FRACTURE_PATH}")
+                messages.append(
+                    "Detector de fractura: NO encontrado\n"
+                    f"Rutas revisadas: {', '.join(MODEL_FRACTURE_CANDIDATES)}"
+                )
         except Exception as e:
             messages.append(f"Detector de fractura: ERROR\n{str(e)}")
 
         try:
-            if os.path.exists(MODEL_TYPE_PATH):
-                self.type_model = load_model(MODEL_TYPE_PATH)
-                messages.append(f"Clasificador de tipo: OK\nRuta: {MODEL_TYPE_PATH}")
+            self.type_model, type_model_path = self._load_first_existing_model(MODEL_TYPE_CANDIDATES)
+            if self.type_model is not None:
+                messages.append(f"Clasificador de tipo: OK\nRuta: {type_model_path}")
             else:
-                messages.append(f"Clasificador de tipo: NO encontrado\nRuta esperada: {MODEL_TYPE_PATH}")
+                messages.append(
+                    "Clasificador de tipo: NO encontrado\n"
+                    f"Rutas revisadas: {', '.join(MODEL_TYPE_CANDIDATES)}"
+                )
         except Exception as e:
             messages.append(f"Clasificador de tipo: ERROR\n{str(e)}")
 
@@ -309,7 +327,7 @@ class FractureDetectorApp(ctk.CTk):
                     f"Resultado del detector: {fracture_label}\n"
                     f"Confianza detector: {fracture_conf * 100:.2f}%\n\n"
                     "Se detectó fractura, pero no se encontró el modelo de tipo.\n"
-                    "Debes entrenar y guardar: output/fracture_type.keras"
+                    f"Debes entrenar y guardar en una de estas rutas: {', '.join(MODEL_TYPE_CANDIDATES)}"
                 )
                 self.details_text.configure(state="disabled")
                 return
