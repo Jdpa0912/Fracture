@@ -5,7 +5,6 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from PIL import Image
 from keras.models import load_model
-from keras.layers import BatchNormalization
 from keras.applications.mobilenet_v2 import preprocess_input
 
 ctk.set_appearance_mode("dark")
@@ -14,33 +13,12 @@ ctk.set_default_color_theme("blue")
 APP_TITLE = "Detector de Fracturas RX"
 WINDOW_GEOMETRY = "1180x760"
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_FRACTURE_CANDIDATES = [
-    os.path.join(BASE_DIR, "output", "fracture_detector.keras"),
-    os.path.join(BASE_DIR, "output", "model.keras"),
-]
-MODEL_TYPE_CANDIDATES = [
-    os.path.join(BASE_DIR, "output", "fracture_type.keras"),
-]
+MODEL_FRACTURE_PATH = "output/model.keras"
+MODEL_TYPE_PATH = "output/fracture_type.keras"
 IMG_SIZE = (224, 224)
 
 FRACTURE_CLASSES = ["Fractured", "Non-Fractured"]
 TYPE_CLASSES = ["Comminuted", "Simple"]
-
-
-class CompatBatchNormalization(BatchNormalization):
-    def __init__(self, *args, renorm=None, renorm_clipping=None, renorm_momentum=None, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
-def load_model_with_compat(model_path):
-    return load_model(
-        model_path,
-        compile=False,
-        custom_objects={
-            "BatchNormalization": CompatBatchNormalization,
-        },
-    )
 
 
 class FractureDetectorApp(ctk.CTk):
@@ -212,36 +190,24 @@ class FractureDetectorApp(ctk.CTk):
         )
         self.details_text.configure(state="disabled")
 
-    def _load_first_existing_model(self, candidate_paths):
-        existing_path = next((path for path in candidate_paths if os.path.exists(path)), None)
-        if existing_path is None:
-            return None, None
-        return load_model_with_compat(existing_path), existing_path
-
     def load_models(self):
         messages = []
 
         try:
-            self.fracture_model, fracture_model_path = self._load_first_existing_model(MODEL_FRACTURE_CANDIDATES)
-            if self.fracture_model is not None:
-                messages.append(f"Detector de fractura: OK\nRuta: {fracture_model_path}")
+            if os.path.exists(MODEL_FRACTURE_PATH):
+                self.fracture_model = load_model(MODEL_FRACTURE_PATH)
+                messages.append(f"Detector de fractura: OK\nRuta: {MODEL_FRACTURE_PATH}")
             else:
-                messages.append(
-                    "Detector de fractura: NO encontrado\n"
-                    f"Rutas revisadas: {', '.join(MODEL_FRACTURE_CANDIDATES)}"
-                )
+                messages.append(f"Detector de fractura: NO encontrado\nRuta esperada: {MODEL_FRACTURE_PATH}")
         except Exception as e:
             messages.append(f"Detector de fractura: ERROR\n{str(e)}")
 
         try:
-            self.type_model, type_model_path = self._load_first_existing_model(MODEL_TYPE_CANDIDATES)
-            if self.type_model is not None:
-                messages.append(f"Clasificador de tipo: OK\nRuta: {type_model_path}")
+            if os.path.exists(MODEL_TYPE_PATH):
+                self.type_model = load_model(MODEL_TYPE_PATH)
+                messages.append(f"Clasificador de tipo: OK\nRuta: {MODEL_TYPE_PATH}")
             else:
-                messages.append(
-                    "Clasificador de tipo: NO encontrado\n"
-                    f"Rutas revisadas: {', '.join(MODEL_TYPE_CANDIDATES)}"
-                )
+                messages.append(f"Clasificador de tipo: NO encontrado\nRuta esperada: {MODEL_TYPE_PATH}")
         except Exception as e:
             messages.append(f"Clasificador de tipo: ERROR\n{str(e)}")
 
@@ -343,7 +309,7 @@ class FractureDetectorApp(ctk.CTk):
                     f"Resultado del detector: {fracture_label}\n"
                     f"Confianza detector: {fracture_conf * 100:.2f}%\n\n"
                     "Se detectó fractura, pero no se encontró el modelo de tipo.\n"
-                    f"Debes entrenar y guardar en una de estas rutas: {', '.join(MODEL_TYPE_CANDIDATES)}"
+                    "Debes entrenar y guardar: output/fracture_type.keras"
                 )
                 self.details_text.configure(state="disabled")
                 return
